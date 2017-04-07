@@ -17,11 +17,11 @@ import physicballs.Physics;
  */
 public class SpaceRules {
 
-    public static boolean appliedPhysics = false;
+    public static boolean appliedPhysics = true;
     public static boolean sizes = false;
     
     public static boolean serverOn = false;
-    public static boolean randomGeneratorOn = true;
+    public static boolean randomGeneratorOn = false;
 
 
 }
