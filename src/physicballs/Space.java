@@ -5,10 +5,8 @@
  */
 package physicballs;
 
-import com.sun.javafx.geom.Vec2d;
 import items.Ball;
 import items.Obstacle;
-import items.Player;
 import items.StopItem;
 import java.awt.Canvas;
 import java.awt.Color;
@@ -32,9 +30,10 @@ public class Space extends Canvas implements Runnable {
     /**
      * Global parameters
      */
-    private int spaceWidth;
-    private int spaceHeight;
+    private static int spaceWidth=1280;
+    private static int spaceHeight=720;
     private Dimension d;
+    private String name;
 
     private int ballLimit = 2;
     private int stopItemsLimit = 1;
@@ -47,7 +46,6 @@ public class Space extends Canvas implements Runnable {
     private final float gravityX = -3f;
     private final float gravityY = 6f;
 
-    private Player player;
 
     /**
      * Main constructor
@@ -57,14 +55,16 @@ public class Space extends Canvas implements Runnable {
      * @param ballLimit
      */
     public Space(int spaceWidth, int spaceHeigth, int ballLimit) {
-        this.spaceWidth = spaceWidth;
-        this.spaceHeight = spaceHeigth;
+//        this.spaceWidth = spaceWidth;
+//        this.spaceHeight = spaceHeigth;
         this.ballLimit = ballLimit;
         d= new Dimension(spaceWidth, spaceHeight);
         //init
         init();
 
     }
+    
+    public Space(){}
 
     /**
      * Init
@@ -83,13 +83,13 @@ public class Space extends Canvas implements Runnable {
         Ball b;
         for (int con = 0; con < ballLimit; con++) {
             if (SpaceRules.sizes) {
-                b=new Ball((float )Math.random()*100, (float )Math.random()*100, 0.5f, 1, 10+con*2, 10+con*2, 80, this, "N");
+                b=new Ball((float )Math.random()*100, (float )Math.random()*100, 0.5f, 1, 10+con*2, 80,  "N");
                 balls.add(b);
             } else {
                 if(con<8){
-                    b=new Ball((float )Math.random()*100, (float )Math.random()*100, 0.5f, 1, 10+con*2, 10+con*2,80, this, "N");
+                    b=new Ball((float )Math.random()*100, (float )Math.random()*100, 0.5f, 1, 10+con*2, 80,  "N");
                 }else{
-                    b=new Ball((float )Math.random()*100, (float )Math.random()*100, 0.5f, 1, 10+con*2, 10+con*2, 80, this, "E");
+                    b=new Ball((float )Math.random()*100, (float )Math.random()*100, 0.5f, 1, 10+con*2, 80,  "E");
                 }
                 
                 balls.add(b);
@@ -97,15 +97,16 @@ public class Space extends Canvas implements Runnable {
             }
         }
 
-        stopItems.add(new StopItem(0, 0, 0, 0, this));
-        stopItems.add(new StopItem(60, 30, 0, 0, this));
+        stopItems.add(new StopItem(400, 200, 50, 50, this));
+        stopItems.add(new StopItem(500, 500, 500, 200, this));
 
-        obstaculo = new Obstacle(50, 50, 20, 30, 60, this);
+        obstaculo = new Obstacle(700, 500, 30, 60, this);
 
         //new Thread(player).start();
 
         for (int con = 0; con < balls.size(); con++) {
-            new Thread(balls.get(con)).start();
+//            new Thread(balls.get(con)).start();
+              new Thread(new ThreadBall(balls.get(con), this)).start();
         }
 
 
@@ -152,14 +153,6 @@ public class Space extends Canvas implements Runnable {
             balls.remove(con);
     }
 
-    /**
-     *
-     * @return
-     */
-    public Player getPlayer() {
-        return player;
-    }
-
     public CopyOnWriteArrayList<Ball> getBalls() {
         return balls;
     }
@@ -179,9 +172,38 @@ public class Space extends Canvas implements Runnable {
     public float getGravityY() {
         return gravityY;
     }
-    
-    
-    
+
+    public String getName() {
+        return name;
+    }
+
+    public void setName(String name) {
+        this.name = name;
+    }
+
+    public int getBallLimit() {
+        return ballLimit;
+    }
+
+    public void setBallLimit(int ballLimit) {
+        this.ballLimit = ballLimit;
+    }
+
+    public static int getSpaceWidth() {
+        return spaceWidth;
+    }
+
+    public static int getSpaceHeight() {
+        return spaceHeight;
+    }
+
+    public static void setSpaceWidth(int spaceWidth) {
+        Space.spaceWidth = spaceWidth;
+    }
+
+    public static void setSpaceHeight(int spaceHeight) {
+        Space.spaceHeight = spaceHeight;
+    }
 
     public Dimension getD() {
         return d;
@@ -190,9 +212,9 @@ public class Space extends Canvas implements Runnable {
     
 
     public void addBall() {
-        Ball b = new Ball(240, 240, 2, 1, 20, 50, 325, this, "N");
+        Ball b = new Ball(240, 240, 2, 1, 20, 325,  "N");
         b.setColor(Color.yellow);
-        new Thread(b).start();
+        //new Thread(b).start();
         balls.add(b);
     }
 

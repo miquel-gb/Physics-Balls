@@ -6,31 +6,28 @@
 package items;
 
 import java.awt.Color;
-import java.awt.Dimension;
 import java.awt.Graphics;
 import java.awt.Graphics2D;
 import java.awt.RenderingHints;
 import java.util.logging.Level;
 import java.util.logging.Logger;
-import physicballs.Physics;
-import physicballs.Space;
-import rules.SpaceRules;
 
 /**
  *
  * @author Liam-Portatil
  */
-public class Ball extends Item implements Runnable {
+public class Ball extends Item {
 
     
-    protected float speedx;
-    protected float speedy;
-    protected final float maxspeed=20;
+    private float speedx;
+    private float speedy;
+    private float maxspeed=20;
 
-    protected float accel=0;
-            
+    private float accel=0;
     
-    protected float radius;
+    private boolean stoped= false;
+    
+    private float radius;
     
     public enum ballType{
         NORMAL, EXPLOSIVE, BULLET;
@@ -38,11 +35,10 @@ public class Ball extends Item implements Runnable {
     
     ballType type;
     
-    long time;
+    private long time;
     
-    protected boolean active = true;
+    public boolean active = true;
 
-    protected Space parent;
 
     /**
      * Main constructor
@@ -53,25 +49,26 @@ public class Ball extends Item implements Runnable {
      * @param radius
      * @param parent
      */
-    public Ball(float x, float y, float speed, float accel, float radius, float mass, float angle, Space parent, String type) {
-        super(x/100*parent.getD().width,y/100*parent.getD().height,mass,Color.BLUE);
+    public Ball(float x, float y, float speed, float accel, float radius, float angle, String type) {
+        super(x,y,radius,Color.BLUE);
         speedx = (float) (speed * Math.cos(Math.toRadians(angle)));
         speedy = (float) (-speed * Math.sin(Math.toRadians(angle)));
         this.accel= accel;
         this.radius = radius;
-        this.parent = parent;
         setType(type);
         color();
     }
     
-    public Ball(float x, float y, float speedx, float speedy, float radius, float mass, String type){
-        super(x,y,mass,Color.BLUE);
+    public Ball(float x, float y, float speedx, float speedy, float radius, String type){
+        super(x,y,radius,Color.BLUE);
         this.speedx= speedx;
         this.speedy= speedy;
         this.radius= radius;
         setType(type);
         color();
     }
+    
+    public Ball(){}
     
     public void color(){
         switch(type){
@@ -122,20 +119,20 @@ public class Ball extends Item implements Runnable {
     /**
      * Main ball life cicle
      */
-    @Override
-    public void run() {
-        time = System.nanoTime();
-        while (true) {
-            Physics.ballMovement(this,parent);
-            do {
-                try {
-                    Thread.sleep(15);
-                } catch (InterruptedException ex) {
-                    Logger.getLogger(Ball.class.getName()).log(Level.SEVERE, null, ex);
-                }
-            } while (!active);
-        }
-    }
+//    @Override
+//    public void run() {
+//        time = System.nanoTime();
+//        while (true) {
+//            Physics.ballMovement(this,parent);
+//            do {
+//                try {
+//                    Thread.sleep(15);
+//                } catch (InterruptedException ex) {
+//                    Logger.getLogger(Ball.class.getName()).log(Level.SEVERE, null, ex);
+//                }
+//            } while (!active);
+//        }
+//    }
 
     /**
      * Getters and Setters
@@ -164,14 +161,6 @@ public class Ball extends Item implements Runnable {
     public void setRadius(float radius) {
         this.radius = radius;
     }
-
-    public Space getParent() {
-        return parent;
-    }
-
-    public void setParent(Space parent) {
-        this.parent = parent;
-    }
     
     public void stopBall(){
         active = false;
@@ -196,6 +185,10 @@ public class Ball extends Item implements Runnable {
     public float getMaxspeed() {
         return maxspeed;
     }
+
+    public void setMaxspeed(float maxspeed) {
+        this.maxspeed = maxspeed;
+    }
     
     
     
@@ -211,5 +204,15 @@ public class Ball extends Item implements Runnable {
     public float getAngle(){
         return (float) Math.toDegrees(Math.atan2(speedy, speedx));
     }
+
+    public boolean isStoped() {
+        return stoped;
+    }
+
+    public void setStoped(boolean stoped) {
+        this.stoped = stoped;
+    }
+    
+    
     
 }

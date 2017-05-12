@@ -6,7 +6,6 @@
 package items;
 
 import java.awt.Color;
-import physicballs.Space;
 
 /**
  *
@@ -25,6 +24,8 @@ public class Item {
         this.mass = mass;
         this.color = color;
     }
+    
+    public Item(){}
     
     public float getX() {
         return posX;

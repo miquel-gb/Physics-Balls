@@ -7,10 +7,7 @@ package items;
 
 import java.awt.Color;
 import java.awt.Graphics;
-import java.util.logging.Level;
-import java.util.logging.Logger;
 import physicballs.Space;
-import rules.SpaceRules;
 
 /**
  *
@@ -35,19 +32,24 @@ public class StopItem extends Obstacle{
      * @param x
      * @param y
      * @param width
+     * @param height
      * @param parent
      */
     public StopItem(float x, float y, float width, float height, Space parent) {
-        super(x, y, 0, width, height, parent);
+        super(x, y, width, height, parent);
         this.parent = parent;
         this.occupied = false;
     }
+    
+    public StopItem(){}
 
     public synchronized void insert(Ball b){
         if(occupied && this.b != b) {
             try {
+                b.setStoped(true);
                 wait();
                 b.currentTime();
+                b.setStoped(false);
             } catch (InterruptedException ex) {
             }
         }
