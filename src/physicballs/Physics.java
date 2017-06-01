@@ -343,19 +343,21 @@ public class Physics {
             }
         } else {
             if (b1.getType() == Ball.ballType.BULLET && b2.getType() == Ball.ballType.BULLET) {
-                if (Math.hypot(b1.getSpeedx(), b1.getSpeedy()) > 8 || Math.hypot(b2.getSpeedx(), b2.getSpeedy()) > 8) {
+                if (Math.hypot(b1.getSpeedx(), b1.getSpeedy()) > 8 && b2.getRadius()>b1.getRadius()*1.2) {
                     impact(b1, b2, space);
-                } else {
+                } else if(Math.hypot(b2.getSpeedx(), b2.getSpeedy()) > 8&& b2.getRadius()<b1.getRadius()*1.2){
+                    impact(b2, b1, space);
+                }else{
                     bounce(b1, b2);
                 }
             } else if (b1.getType() == Ball.ballType.BULLET) {
-                if (Math.hypot(b1.getSpeedx(), b1.getSpeedy()) > 8) {
+                if (Math.hypot(b1.getSpeedx(), b1.getSpeedy()) > 8 && b2.getRadius()>b1.getRadius()*1.2) {
                     impact(b1, b2, space);
                 } else {
                     bounce(b1, b2);
                 }
             } else {
-                if (Math.hypot(b2.getSpeedx(), b2.getSpeedy()) > 8) {
+                if (Math.hypot(b2.getSpeedx(), b2.getSpeedy()) > 8 && b2.getRadius()<b1.getRadius()*1.2) {
                     impact(b2, b1, space);
                 } else {
                     bounce(b1, b2);
@@ -366,9 +368,11 @@ public class Physics {
 
     public static void explode(Ball b, Space space) {
         if (space.getBalls().contains(b)) {
+            double area= b.getRadius()*b.getRadius()*Math.PI;
+            double radius= Math.sqrt((area/10)/Math.PI);
             for (int i = 0; i != 10; i++) {
                 float angle = (float) (i * 36 + (new Random().nextInt(36)));
-                Ball bullet = new Ball((float) (b.getX() + b.getRadius() / 10 * Math.cos(Math.toRadians(angle))), (float) (b.getY() + b.getRadius() / 10 * Math.sin(Math.toRadians(angle))), 2, 1, b.getRadius() / 10, angle, "B");
+                Ball bullet = new Ball((float) (b.getX() + radius * Math.cos(Math.toRadians(angle))), (float) (b.getY() + radius * Math.sin(Math.toRadians(angle))), 2, 1, (float) radius, angle, "B");
                 space.getBalls().add(bullet);
                 new Thread(new ThreadBall(bullet, space)).start();
             }
@@ -378,9 +382,11 @@ public class Physics {
 
     public static void impact(Ball bullet, Ball ball, Space space) {
         if (space.getBalls().contains(bullet)) {
+            double area= bullet.getRadius()*bullet.getRadius()*Math.PI;
+            double perimeter= 2*ball.getRadius()*Math.PI;
             space.delete(space.getBalls().indexOf(bullet));
-            ball.setMass(ball.getMass() + bullet.getMass());
-            ball.setRadius(ball.getMass() + bullet.getMass() / 10);
+            ball.setRadius((float) (ball.getRadius() + area/perimeter));
+            ball.setMass(ball.getRadius());
         }
     }
 }
