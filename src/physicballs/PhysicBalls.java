@@ -9,7 +9,6 @@ import java.awt.Container;
 import java.awt.GridLayout;
 import javax.swing.JFrame;
 import rules.SpaceRules;
-import server.Server;
 
 /**
  *
@@ -21,8 +20,7 @@ public class PhysicBalls extends JFrame {
      * Global parameters
      */
     private Container content;
-    private Server server;
-    private Space space = new Space(650, 400, 10);
+    private Space space = new Space(1000, 600, 10);
 
     /**
      * Constructor
@@ -30,19 +28,13 @@ public class PhysicBalls extends JFrame {
     public PhysicBalls() {
         init();
         new Thread(space).start();
-        if (SpaceRules.randomGeneratorOn) {
-            new RandomGenerator(space).start();
-        }
-        if (SpaceRules.serverOn) {
-            server = new Server(space);
-        }
 
     }
 
     public void init() {
         //initial values
         setDefaultCloseOperation(JFrame.EXIT_ON_CLOSE);
-        setLocation(150, 150);
+        setLocation(0, 0);
         setLayout(new GridLayout(1, 1));
 
         //Main panel
