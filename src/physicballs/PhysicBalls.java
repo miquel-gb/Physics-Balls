@@ -9,7 +9,6 @@ import java.awt.Container;
 import java.awt.GridLayout;
 import javax.swing.JFrame;
 import rules.SpaceRules;
-import server.Server;
 
 /**
  *
@@ -21,8 +20,7 @@ public class PhysicBalls extends JFrame {
      * Global parameters
      */
     private Container content;
-    private Server server;
-    private Space space = new Space(1200, 500, 10);
+    private Space space = new Space(1000, 600, 10);
 
     /**
      * Constructor
@@ -30,12 +28,6 @@ public class PhysicBalls extends JFrame {
     public PhysicBalls() {
         init();
         new Thread(space).start();
-        if (SpaceRules.randomGeneratorOn) {
-            new RandomGenerator(space).start();
-        }
-        if (SpaceRules.serverOn) {
-            server = new Server(space);
-        }
 
     }
 
