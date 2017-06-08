@@ -5,11 +5,12 @@
  */
 package physicballs;
 
+import database.DBHandler;
 import java.awt.Container;
 import java.awt.GridLayout;
+import java.util.List;
 import javax.swing.JFrame;
-import rules.SpaceRules;
-import server.Server;
+import javax.swing.JOptionPane;
 
 /**
  *
@@ -21,28 +22,38 @@ public class PhysicBalls extends JFrame {
      * Global parameters
      */
     private Container content;
-    private Server server;
-    private Space space = new Space(650, 400, 10);
 
     /**
      * Constructor
      */
     public PhysicBalls() {
-        init();
-        new Thread(space).start();
-        if (SpaceRules.randomGeneratorOn) {
-            new RandomGenerator(space).start();
-        }
-        if (SpaceRules.serverOn) {
-            server = new Server(space);
-        }
 
+        DBHandler db = new DBHandler();
+        Space space;
+        String[] spaces = db.getSpaceList1();
+        String s = (String) JOptionPane.showInputDialog(
+                null,
+                "Escoja el mapa que desea cargar:",
+                "Selección de mapa",
+                JOptionPane.OK_OPTION,
+                null,
+                spaces,
+                null);
+        List<Space> list = db.selectSpace(s);
+
+        for (int i = 0; i < list.size(); i++) {
+
+            String spaceName = list.get(i).getName();
+            space = new Space(1000, 600, spaceName);
+            init(space);
+            new Thread(space).start();
+        }
     }
 
-    public void init() {
+    public void init(Space space) {
         //initial values
         setDefaultCloseOperation(JFrame.EXIT_ON_CLOSE);
-        setLocation(150, 150);
+        setLocation(0, 0);
         setLayout(new GridLayout(1, 1));
 
         //Main panel

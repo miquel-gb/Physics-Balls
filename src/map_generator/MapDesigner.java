@@ -12,14 +12,14 @@ import javax.swing.JFrame;
 
 /**
  *
- * @author Mokiductions
+ * @author Miquel Ginés
  */
 public class MapDesigner extends JFrame {
     
     public MapDesigner() throws IOException {
         super("PhysicsBalls - Map designer");
         setDefaultCloseOperation(JFrame.EXIT_ON_CLOSE);
-        add(new Designer());
+        add(new Designer(this));
         pack();
         setLocationRelativeTo(null);
         setResizable(false);

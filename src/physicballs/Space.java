@@ -5,10 +5,9 @@
  */
 package physicballs;
 
-import com.sun.javafx.geom.Vec2d;
+import database.DBHandler;
 import items.Ball;
-import items.Obstaculo;
-import items.Player;
+import items.Obstacle;
 import items.StopItem;
 import java.awt.Canvas;
 import java.awt.Color;
@@ -17,9 +16,7 @@ import java.awt.Graphics;
 import java.awt.image.BufferStrategy;
 import java.util.ArrayList;
 import java.util.List;
-import java.util.logging.Level;
-import java.util.logging.Logger;
-import javax.swing.JOptionPane;
+import java.util.concurrent.CopyOnWriteArrayList;
 import rules.SpaceRules;
 
 /**
@@ -31,18 +28,22 @@ public class Space extends Canvas implements Runnable {
     /**
      * Global parameters
      */
-    private int spaceWidth;
-    private int spaceHeight;
+    private static int spaceWidth = 1280;
+    private static int spaceHeight = 720;
+    private Dimension d;
+    private String name;
 
-    private int ballLimit = 3;
+    private int ballLimit = 2;
     private int stopItemsLimit = 1;
 
-    private ArrayList<Ball> balls;
+    private CopyOnWriteArrayList<Ball> balls;
     private ArrayList<StopItem> stopItems;
+    private ArrayList<Obstacle> obstacleList;
+    private Obstacle obstaculo;
 
-    private Obstaculo obstaculo;
+    private final float gravityX = -3f;
+    private final float gravityY = 6f;
 
-    private Player player;
 
     /**
      * Main constructor
@@ -52,13 +53,21 @@ public class Space extends Canvas implements Runnable {
      * @param ballLimit
      */
     public Space(int spaceWidth, int spaceHeigth, int ballLimit) {
-        this.spaceWidth = spaceWidth;
-        this.spaceHeight = spaceHeigth;
         this.ballLimit = ballLimit;
+        d = new Dimension(spaceWidth, spaceHeight);
 
-        //init
         init();
 
+    }
+
+    public Space(int spaceWidth, int spaceHeigth, String spaceName) {
+        this.name = spaceName;
+        d = new Dimension(spaceWidth, spaceHeight);
+//        System.out.println(getName());
+        init();
+    }
+
+    public Space() {
     }
 
     /**
@@ -66,37 +75,59 @@ public class Space extends Canvas implements Runnable {
      */
     private void init() {
         //JPanel parameters
-        setPreferredSize(new Dimension(spaceWidth, spaceHeight));
+        setPreferredSize(d);
 
         //Player
-        player = new Player(30, 300, 10, 10, 10, 1, this);
-
+        //player = new Player(30, 300, 10, 10, 10, 1, this);
         //Ball parameters
-        balls = new ArrayList<Ball>();
-        stopItems = new ArrayList<StopItem>();
+        balls = new CopyOnWriteArrayList<>();
+//        balls = new ArrayList<>();
+        stopItems = new ArrayList<>();
+        obstacleList = new ArrayList<>();
 
-        for (int con = 0; con < ballLimit; con++) {
+        Ball b;
+        DBHandler db = new DBHandler();
+        List<Ball> balllist = db.selectBalls(name);
+        //System.out.println(name);
+        String typechar = "";
+        for (int i = 0; i < balllist.size(); i++) {
+
+            typechar = String.valueOf(balllist.get(i).getType().name().charAt(0));
             if (SpaceRules.sizes) {
-                balls.add(new Ball(con * 55 + 20, con * 40 + 20, 1, 2, 10 + (con * 2) - 9, 1, this));
+                //System.out.println(list.get(i).getType().name());
+                b = new Ball(balllist.get(i).getX(), balllist.get(i).getY(), (float) balllist.get(i).getSpeed(), balllist.get(i).getAccel(), balllist.get(i).getRadius(), balllist.get(i).getAngle(), typechar);
+                balls.add(b);
             } else {
-                balls.add(new Ball(con * 55 + 20, con * 40 + 20, 1, 2, 10, 1, this));
-
+                if (i < 8) {
+                    // System.out.println(list.get(i).getX()+" "+ list.get(i).getY()+" "+  (float) list.get(i).getSpeed()+" "+  list.get(i).getAccel()+" "+ list.get(i).getRadius()+" "+  list.get(i).getAngle()+" "+ typechar);
+                    b = new Ball(balllist.get(i).getX(), balllist.get(i).getY(), (float) balllist.get(i).getSpeed(), balllist.get(i).getAccel(), balllist.get(i).getRadius(), balllist.get(i).getAngle(), typechar);
+                } else {
+                    b = new Ball(balllist.get(i).getX(), balllist.get(i).getY(), (float) balllist.get(i).getSpeed(), balllist.get(i).getAccel(), balllist.get(i).getRadius(), balllist.get(i).getAngle(), typechar);
+                }
+                balls.add(b);
             }
         }
 
-        stopItems.add(new StopItem(350, 50, 50, this));
-        stopItems.add(new StopItem(150, 250, 50, this));
-
-        obstaculo = new Obstaculo(400, 250, 30);
-
-        player.start();
-
-        for (int con = 0; con < balls.size(); con++) {
-            balls.get(con).start();
+        StopItem stopItem;
+        List<StopItem> stoplist = db.selectStopItems(name);
+        for (int i = 0; i < stoplist.size(); i++) {
+            stopItem = new StopItem(stoplist.get(i).getX(), stoplist.get(i).getY(), stoplist.get(i).getWidth(), stoplist.get(i).getHeight(), this);
+            stopItems.add(stopItem);
         }
 
-        stopItems.get(0).start();
-        stopItems.get(1).start();
+        Obstacle obstacle;
+        List<Obstacle> obstlist = db.selectObstacles(name);
+        for (int i = 0; i < obstlist.size(); i++) {
+
+            obstacle = new Obstacle(obstlist.get(i).getX(), obstlist.get(i).getY(), obstlist.get(i).getWidth(), obstlist.get(i).getHeight(), this);
+            obstacleList.add(obstacle);
+
+        }
+
+        for (int con = 0; con < balls.size(); con++) {
+//           new Thread(balls.get(con)).start();
+            new Thread(new ThreadBall(balls.get(con), this)).start();
+        }
 
     }
 
@@ -114,168 +145,24 @@ public class Space extends Canvas implements Runnable {
         gg.setColor(Color.black);
         gg.fillRect(0, 0, spaceWidth, spaceHeight);
 
-        stopItems.get(0).draw(gg);
-        stopItems.get(1).draw(gg);
-
-        obstaculo.draw(gg);
+        for (int i = 0; i < stopItems.size(); i++) {
+            stopItems.get(i).draw(gg);
+        }
+        //stopItems.get(0).draw(gg);
+        //stopItems.get(1).draw(gg);
+        
+        for (int i = 0; i < obstacleList.size(); i++) {
+            obstacleList.get(i).draw(gg);
+        }
 
         for (int con = 0; con < balls.size(); con++) {
             balls.get(con).draw(gg);
         }
 
-        player.draw(gg);
-
+        //player.draw(gg);
         bs.show();
 
         gg.dispose();
-
-    }
-
-    /**
-     * Check collisions
-     *
-     * @param b
-     */
-    public void checkCollision(Ball b) throws InterruptedException {
-        try {
-            ballPlayerCollision(b, player);
-            ballBallCollission(b, balls);
-            ballStopItemCollision(b, stopItems);
-            ballObstaculoCollision(b, obstaculo);
-            ballWallCollision(b, new Dimension(spaceWidth, spaceHeight));
-        } catch (Exception e) {
-
-        }
-
-    }
-
-    /**
-     *
-     * @param p
-     * @throws InterruptedException
-     */
-    public void checkCollision(Player p) throws InterruptedException {
-        ballPlayerCollision(p, player);
-        playerBallCollission(p, balls);
-//        ballStopItemCollision(p, stopItems);
-        ballWallCollision(p, new Dimension(spaceWidth, spaceHeight));
-    }
-
-    /**
-     * Wall collision
-     *
-     * @param b
-     * @param d
-     */
-    public void ballWallCollision(Ball b, Dimension d) {
-        if (b.getRadius() + b.getX() >= d.width) {
-            b.setSpeedx(b.getSpeedx() * -1);
-        }
-        if (b.getX() - b.getRadius() <= 0) {
-            b.setSpeedx(b.getSpeedx() * -1);
-        }
-        if (b.getRadius() + b.getY() >= d.height) {
-            b.setSpeedy(b.getSpeedy() * -1);
-        }
-        if (b.getY() - b.getRadius() <= 0) {
-            b.setSpeedy(b.getSpeedy() * -1);
-        }
-    }
-
-    private void ballObstaculoCollision(Ball b, Obstaculo o) {
-        if (o.inRange(b)) {
-            if (b.getRadius() + b.getX() >= o.getX() + o.getWidth()) {
-                b.setSpeedx(b.getSpeedx() * -1);
-            }
-            if (b.getX() - b.getRadius() <= o.getX()) {
-                b.setSpeedx(b.getSpeedx() * -1);
-            }
-            if (b.getRadius() + b.getY() >= o.getY() + o.getWidth()) {
-                b.setSpeedy(b.getSpeedy() * -1);
-            }
-            if (b.getY() - b.getRadius() <= o.getY()) {
-                b.setSpeedy(b.getSpeedy() * -1);
-            }
-        }
-
-    }
-
-    /**
-     * Ball with ball collision
-     *
-     * @param b
-     * @param balls
-     */
-    public void ballBallCollission(Ball b, ArrayList<Ball> balls) {
-        // Variables usadas en las comrobaciones
-        double r, d_mod;
-        Vec2d d, v_ini;
-
-        for (Ball ball : balls) { // Comprueba respecto a todas las bolas del espacio
-            if (ball != b) {     // exceptuando la propia bola
-
-                r = b.getRadius() + ball.getRadius(); // Suma de los radios de las bolas, para compro
-                d = new Vec2d(ball.getX() - b.getX(), ball.getY() - b.getY()); // Vector de distancia entre centros
-                d_mod = Math.hypot(d.x, d.y); // Modulo del vector de distancia
-                v_ini = new Vec2d(b.getSpeedx(), b.getSpeedy()); // Vector de velocidad inicial
-
-                //Checks if in range
-                if (d_mod <= r) {
-                    if (SpaceRules.appliedPhysics) {
-                        Physics.calcBounce(b, ball);
-                    } else {
-                        Vec2d v = Physics.calculo2Vec(d, d_mod, v_ini);
-                        b.setSpeedx((float) v.x); // Asigna la descomposicion X del vector de velocidad final
-                        b.setSpeedy((float) v.y);
-                    }
-
-                }
-            }
-        }
-    }
-
-    public synchronized void playerBallCollission(Player p, ArrayList<Ball> balls) {
-        // Variables usadas en las comrobaciones
-        double r, d_mod;
-        Vec2d d, v_ini;
-
-        for (Ball ball : balls) { // Comprueba respecto a todas las bolas del espacio
-            // exceptuando la propia bola
-
-            r = p.getRadius() + ball.getRadius(); // Suma de los radios de las bolas, para compro
-            d = new Vec2d(ball.getX() - p.getX(), ball.getY() - p.getY()); // Vector de distancia entre centros
-            d_mod = Math.hypot(d.x, d.y); // Modulo del vector de distancia
-            v_ini = new Vec2d(p.getSpeedx(), p.getSpeedy()); // Vector de velocidad inicial
-
-            //Checks if in range
-            if (d_mod <= r) {
-                Vec2d v = Physics.calculo2Vec(d, d_mod, v_ini);
-                p.setSpeedx((float) v.x); // Asigna la descomposicion X del vector de velocidad final
-                p.setSpeedy((float) v.y);
-            }
-
-        }
-    }
-
-    public synchronized void ballPlayerCollision(Ball b, Ball p) {
-        // Variables usadas en las comrobaciones
-        double r, d_mod;
-        Vec2d d, v_ini;
-
-        r = b.getRadius() + p.getRadius(); // Suma de los radios de las bolas, para compro
-        d = new Vec2d(p.getX() - b.getX(), p.getY() - b.getY()); // Vector de distancia entre centros
-        d_mod = Math.hypot(d.x, d.y); // Modulo del vector de distancia
-        v_ini = new Vec2d(b.getSpeedx(), b.getSpeedy()); // Vector de velocidad inicial
-
-        //Checks if in range
-        if (d_mod <= r) {
-            Vec2d v = Physics.calculo2Vec(d, d_mod, v_ini);
-            for (int con = 0; con < balls.size(); con++) {
-                if (b == balls.get(con)) {
-                    delete(b, con);
-                }
-            }
-        }
 
     }
 
@@ -284,33 +171,79 @@ public class Space extends Canvas implements Runnable {
         balls.remove(con);
     }
 
-    public void ballStopItemCollision(Ball b, ArrayList<StopItem> items) throws InterruptedException {
-        for (StopItem item : items) {
-            if (item.inRange(b) || item.getBall() == b) {
-                item.insert(b);
-            }
-        }
+    public synchronized void delete(int con) {
+        balls.get(con).stopBall();
+        balls.remove(con);
     }
 
-    public synchronized boolean ballStopItemInRange(Ball b, StopItem item) {
-        return b.getY() - b.getRadius() < item.getY() + item.getWidth()
-                && b.getY() + b.getRadius() > item.getY()
-                && b.getX() - b.getRadius() < item.getX() + item.getWidth()
-                && b.getX() + b.getRadius() > item.getX();
+    public CopyOnWriteArrayList<Ball> getBalls() {
+        return balls;
     }
 
+    public ArrayList<StopItem> getStopItems() {
+        return stopItems;
+    }
+
+//    public Obstacle getObstaculo() {
+//        return obstaculo;
+//    }
+    
     /**
-     *
-     * @return
+     * método mio
+     * @return 
      */
-    public Player getPlayer() {
-        return player;
+    public ArrayList<Obstacle> getObstacle(){
+        return obstacleList;
+    }
+
+    public float getGravityX() {
+        return gravityX;
+    }
+
+    public float getGravityY() {
+        return gravityY;
+    }
+
+    public String getName() {
+        return name;
+    }
+
+    public void setName(String name) {
+        this.name = name;
+    }
+
+    public int getBallLimit() {
+        return ballLimit;
+    }
+
+    public void setBallLimit(int ballLimit) {
+        this.ballLimit = ballLimit;
+    }
+
+    public static int getSpaceWidth() {
+        return spaceWidth;
+    }
+
+    public static int getSpaceHeight() {
+        return spaceHeight;
+    }
+
+    public static void setSpaceWidth(int spaceWidth) {
+        Space.spaceWidth = spaceWidth;
+    }
+
+    public static void setSpaceHeight(int spaceHeight) {
+        Space.spaceHeight = spaceHeight;
+    }
+
+    public Dimension getD() {
+        return d;
     }
 
     public void addBall() {
-        Ball b = new Ball(240, 240, 1, 2, 10, 1, this);
+        Ball b = new Ball(240, 240, 2, 1, 20, 325, "N");
         b.setColor(Color.yellow);
-        b.start();
+        //new Thread(b).start();
         balls.add(b);
     }
 
@@ -322,6 +255,7 @@ public class Space extends Canvas implements Runnable {
         this.createBufferStrategy(2);
         while (true) {
             this.paint();
+            //this.checkHoles();
             try {
                 Thread.sleep(15); // nano -> ms
             } catch (InterruptedException ex) {

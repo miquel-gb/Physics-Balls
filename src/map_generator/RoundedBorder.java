@@ -1,8 +1,3 @@
-/*
- * To change this license header, choose License Headers in Project Properties.
- * To change this template file, choose Tools | Templates
- * and open the template in the editor.
- */
 package map_generator;
 
 import java.awt.Component;
@@ -13,7 +8,6 @@ import javax.swing.border.Border;
 public class RoundedBorder implements Border {
 
     private int radius;
-
 
     public RoundedBorder(int radius) {
         this.radius = radius;

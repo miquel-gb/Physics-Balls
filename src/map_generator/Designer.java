@@ -5,7 +5,10 @@
  */
 package map_generator;
 
-import java.awt.AlphaComposite;
+import database.DBHandler;
+import items.Ball;
+import items.Obstacle;
+import items.StopItem;
 import java.awt.Color;
 import java.awt.Dimension;
 import java.awt.Font;
@@ -13,46 +16,73 @@ import java.awt.Graphics;
 import java.awt.Graphics2D;
 import java.awt.Point;
 import java.awt.Rectangle;
-import java.awt.RenderingHints;
 import java.awt.event.ActionEvent;
 import java.awt.event.MouseAdapter;
 import java.awt.event.MouseEvent;
+import java.awt.event.MouseMotionListener;
+import java.awt.geom.Line2D;
 import java.io.IOException;
+import java.text.DecimalFormat;
 import java.text.NumberFormat;
 import java.util.ArrayList;
 import java.util.Stack;
 import javax.swing.ImageIcon;
 import javax.swing.JButton;
-import javax.swing.JFormattedTextField;
+import javax.swing.JComboBox;
+import javax.swing.JFrame;
 import javax.swing.JLabel;
 import javax.swing.JOptionPane;
 import javax.swing.JPanel;
+import javax.swing.JSlider;
 import javax.swing.JSplitPane;
 import javax.swing.JTextField;
 import javax.swing.SwingConstants;
+import javax.swing.event.ChangeEvent;
 import javax.swing.text.NumberFormatter;
+import physicballs.PhysicBalls;
+import physicballs.Space;
 
 /**
  *
- * @author PC_15
+ * @author Miquel Ginés
  */
 public class Designer extends JSplitPane {
 
-    // @todo: Cambiar estas listas genéricas por listas de los objetos en concreto
-    private ArrayList<Rectangle> obstacles = new ArrayList<>();
-    private Rectangle obstacle;
-    private ArrayList<Rectangle> bottlenecks = new ArrayList<>();
-    private Rectangle bottleneck;
-    private ArrayList<Point> balls = new ArrayList<>();
-    private Point ball;
+    // Listas de objetos
+    private ArrayList<Obstacle> obstacles = new ArrayList<>();
+    private ArrayList<StopItem> stopItems = new ArrayList<>();
+    private ArrayList<Ball> balls = new ArrayList<>();
+    private Space space = new Space();
+    private String mapName;
 
-    // @todo: esto sobrará
-    private int radius = 10;
+    private StopItem stopItem;
+    private ArrayList<Point[]> speedVecs = new ArrayList<>();
+    private Ball ball;
+    private Obstacle obstacle;
 
     private String item = "BALL";
 
+    private boolean saved = false;
+
+    private DBHandler db;
+
+    // Valores máximos y mínimos permitidos
+    private final int MAX_HEIGHT = 200;
+    private final int MAX_WIDTH = 200;
+    private final int MIN_SPEED = 0;
+    private final int MAX_SPEED = 90;
+    private final int MIN_RADIUS = 5;
+    private final int MAX_RADIUS = 40;
+    private final int MIN_MARGIN = 20;
+    private final int MAPPANEL_WIDTH = 970;
+    private final int MAPPANEL_HEIGHT = 546;
+    
+    private double screenProp;
+
     // Pila usada para el botón de deshacer
     private Stack<String> undoList = new Stack<>();
+
+    private JFrame frame;
 
     // Los dos paneles en los que se separa la ventana, el de los controles y
     // el del mapa
@@ -60,9 +90,10 @@ public class Designer extends JSplitPane {
     private JPanel mapPanel;
 
     // Objetos de labels de información
+    private JLabel mapNameLb;
     private JLabel ballLb;
     private JLabel obsLb;
-    private JLabel bottleneckLb;
+    private JLabel stopItemLb;
     private JLabel mapOptLb;
     private JLabel selectedItemLb;
     private JLabel posXLb;
@@ -70,17 +101,21 @@ public class Designer extends JSplitPane {
     private JLabel widthLb;
     private JLabel heightLb;
     private JLabel radiusLb;
-    private JLabel speedXLb;
-    private JLabel speedYLb;
+    private JLabel radiusInfoLb;
+    private JLabel angleLb;
+    private JLabel angleInfoLb;
+    private JLabel speedLb;
+    private JLabel speedInfoLb;
+    private JLabel ballTypeLb;
 
     private JTextField posXTf;
     private JTextField posYTf;
     private JTextField widthTf;
     private JTextField heightTf;
 
-    private JFormattedTextField radiusTf;
-    private JFormattedTextField speedXTf;
-    private JFormattedTextField speedYTf;
+    private JSlider radiusSl;
+    private JSlider speedSl;
+    private RoundSlider angleSl;
 
     // Botones del panel de controles
     private JButton openBtn;
@@ -89,12 +124,19 @@ public class Designer extends JSplitPane {
     private JButton ballBtn;
     private JButton obsBtn;
     private JButton eraseBtn;
-    private JButton bottleneckBtn;
+    private JButton stopItemBtn;
     private JButton configBtn;
 
-    public Designer() throws IOException {
+    private JComboBox ballTypeCb;
+
+    public Designer(JFrame frame) throws IOException {
         super(JSplitPane.VERTICAL_SPLIT);
         setDividerSize(0);
+
+        this.frame = frame;
+        screenProp = MAPPANEL_WIDTH / 1280;
+
+        db = new DBHandler();
 
         // El tamaño total de la ventana se partirá en los dos contenedores,
         // El primero de 1100 x 200, el segundo de 1100 x 619
@@ -103,6 +145,21 @@ public class Designer extends JSplitPane {
 
         setLeftComponent(controlPanel);
         setRightComponent(mapPanel);
+
+        askMapName();
+    }
+
+    private void askMapName() {
+        boolean validName = true;
+        do {
+            mapName = JOptionPane.showInputDialog(this, "Introduce el nombre del mapa:", "");
+            validName = db.checkSpaceName(mapName);
+            if (!validName) {
+                JOptionPane.showMessageDialog(this, "Ya existe un mapa con ese nombre en la base de datos.", "Error en la creación del mapa", JOptionPane.ERROR_MESSAGE);
+            }
+        } while (!validName);
+        System.out.println(mapName);
+        mapNameLb.setText(mapName);
     }
 
     private void createControlPanel() throws IOException {
@@ -118,7 +175,7 @@ public class Designer extends JSplitPane {
                 g.fillRect(364, 0, 3, 140);
             }
         };
-        controlPanel.setPreferredSize(new Dimension(1100, 143));
+        controlPanel.setPreferredSize(new Dimension(MAPPANEL_WIDTH, 143));
         controlPanel.setLayout(null);
 
         createMapControlForm();
@@ -146,17 +203,22 @@ public class Designer extends JSplitPane {
                 item = "BALL";
                 ballBtn.setEnabled(false);
                 obsBtn.setEnabled(true);
-                bottleneckBtn.setEnabled(true);
+                stopItemBtn.setEnabled(true);
                 radiusLb.setVisible(true);
-                radiusTf.setVisible(true);
+                radiusInfoLb.setVisible(true);
+                radiusSl.setVisible(true);
                 widthLb.setVisible(false);
                 widthTf.setVisible(false);
                 heightLb.setVisible(false);
                 heightTf.setVisible(false);
-                speedXLb.setVisible(true);
-                speedXTf.setVisible(true);
-                speedYLb.setVisible(true);
-                speedYTf.setVisible(true);
+                speedLb.setVisible(true);
+                speedSl.setVisible(true);
+                speedInfoLb.setVisible(true);
+                angleSl.setVisible(true);
+                angleLb.setVisible(true);
+                angleInfoLb.setVisible(true);
+                ballTypeLb.setVisible(true);
+                ballTypeCb.setVisible(true);
                 selectedItemLb.setText("Bola");
             }
         });
@@ -179,64 +241,80 @@ public class Designer extends JSplitPane {
                 item = "OBSTACLE";
                 obsBtn.setEnabled(false);
                 ballBtn.setEnabled(true);
-                bottleneckBtn.setEnabled(true);
+                stopItemBtn.setEnabled(true);
                 radiusLb.setVisible(false);
-                radiusTf.setVisible(false);
+                radiusInfoLb.setVisible(false);
+                radiusSl.setVisible(false);
                 widthLb.setVisible(true);
                 widthTf.setVisible(true);
                 heightLb.setVisible(true);
                 heightTf.setVisible(true);
-                speedXLb.setVisible(false);
-                speedXTf.setVisible(false);
-                speedYLb.setVisible(false);
-                speedYTf.setVisible(false);
+                speedLb.setVisible(false);
+                speedSl.setVisible(false);
+                speedInfoLb.setVisible(false);
+                angleSl.setVisible(false);
+                angleLb.setVisible(false);
+                angleInfoLb.setVisible(false);
+                ballTypeLb.setVisible(false);
+                ballTypeCb.setVisible(false);
                 selectedItemLb.setText("Obstáculo");
             }
         });
         controlPanel.add(obsBtn);
 
-        bottleneckLb = new JLabel("Semáforo", SwingConstants.CENTER);
-        bottleneckLb.setSize(60, 15);
-        bottleneckLb.setLocation(150, 5);
-        controlPanel.add(bottleneckLb);
+        stopItemLb = new JLabel("Semáforo", SwingConstants.CENTER);
+        stopItemLb.setSize(60, 15);
+        stopItemLb.setLocation(150, 5);
+        controlPanel.add(stopItemLb);
 
         // Botón para seleccionar el semáforo
-        bottleneckBtn = new JButton(new ImageIcon("img/bottle.png"));
-        bottleneckBtn.setSize(40, 40);
-        bottleneckBtn.setLocation(161, 20);
-        bottleneckBtn.setBorder(new RoundedBorder(10));
-        bottleneckBtn.setForeground(Color.GRAY);
-        bottleneckBtn.setToolTipText("Colocar semáforos");
-        bottleneckBtn.addActionListener((ActionEvent e) -> {
+        stopItemBtn = new JButton(new ImageIcon("img/bottle.png"));
+        stopItemBtn.setSize(40, 40);
+        stopItemBtn.setLocation(161, 20);
+        stopItemBtn.setBorder(new RoundedBorder(10));
+        stopItemBtn.setForeground(Color.GRAY);
+        stopItemBtn.setToolTipText("Colocar semáforos");
+        stopItemBtn.addActionListener((ActionEvent e) -> {
             item = "BOTTLENECK";
-            bottleneckBtn.setEnabled(false);
+            stopItemBtn.setEnabled(false);
             ballBtn.setEnabled(true);
             obsBtn.setEnabled(true);
             radiusLb.setVisible(false);
-            radiusTf.setVisible(false);
+            radiusInfoLb.setVisible(false);
+            radiusSl.setVisible(false);
             widthLb.setVisible(true);
             widthTf.setVisible(true);
             heightLb.setVisible(true);
             heightTf.setVisible(true);
-            speedXLb.setVisible(false);
-            speedXTf.setVisible(false);
-            speedYLb.setVisible(false);
-            speedYTf.setVisible(false);
+            speedLb.setVisible(false);
+            speedSl.setVisible(false);
+            speedInfoLb.setVisible(false);
+            angleSl.setVisible(false);
+            angleLb.setVisible(false);
+            angleInfoLb.setVisible(false);
+            ballTypeLb.setVisible(false);
+            ballTypeCb.setVisible(false);
             selectedItemLb.setText("Semáforo");
         });
-        controlPanel.add(bottleneckBtn);
+        controlPanel.add(stopItemBtn);
+
+        mapNameLb = new JLabel("", SwingConstants.CENTER);
+        mapNameLb.setFont(new Font(mapNameLb.getFont().getName(), Font.BOLD, 20));
+        mapNameLb.setSize(190, 30);
+        mapNameLb.setLocation(15, 70);
+        controlPanel.add(mapNameLb);
 
         // Botón para modificar la configuración general del mapa
-        configBtn = new JButton(new ImageIcon("img/settings.png"));
-        configBtn.setSize(186, 40);
-        configBtn.setLocation(15, 80);
+        configBtn = new JButton();
+        configBtn.setSize(186, 25);
+        configBtn.setLocation(15, 110);
         configBtn.setBorder(new RoundedBorder(10));
         configBtn.setForeground(Color.BLACK);
-        configBtn.setText("Configuración general");
-        configBtn.setHorizontalAlignment(SwingConstants.LEFT);
-        configBtn.setToolTipText("Configuración general del escenario");
+        configBtn.setText("Cambiar nombre");
+        configBtn.setHorizontalAlignment(SwingConstants.CENTER);
+        configBtn.setToolTipText("Cambia el nombre del mapa");
         configBtn.addActionListener((ActionEvent e) -> {
-
+            askMapName();
         });
         controlPanel.add(configBtn);
 
@@ -253,8 +331,27 @@ public class Designer extends JSplitPane {
         openBtn.setForeground(Color.GRAY);
         openBtn.setToolTipText("Cargar escenario");
         openBtn.addActionListener((ActionEvent e) -> {
-            // @todo: Aquí se implementará la persistencia a la base de datos 
+            // @todo: Aquí se implementará la carga de la base de datos 
             // del escenario
+            if (!saved && (balls.size() > 0 || obstacles.size() > 0 || stopItems.size() > 0)) {
+                Object[] options = {"Sí", "No"};
+                int selected = JOptionPane.showOptionDialog(frame,
+                        "¿Quiere guardar el mapa antes de arrancar el simulador?",
+                        "Guardar",
+                        JOptionPane.YES_NO_OPTION,
+                        JOptionPane.QUESTION_MESSAGE,
+                        null,
+                        options,
+                        options[0]);
+                if (selected == 0) {
+                    saveMap();
+                    frame.setVisible(false);
+                    new PhysicBalls();
+                }
+            } else {
+                frame.setVisible(false);
+                new PhysicBalls();
+            }
         });
         controlPanel.add(openBtn);
 
@@ -267,8 +364,7 @@ public class Designer extends JSplitPane {
         saveBtn.setForeground(Color.GRAY);
         saveBtn.setToolTipText("Guardar escenario");
         saveBtn.addActionListener((ActionEvent e) -> {
-            // @todo: Aquí se implementará la persistencia a la base de datos 
-            // del escenario
+            saveMap();
         });
         controlPanel.add(saveBtn);
 
@@ -286,12 +382,13 @@ public class Designer extends JSplitPane {
                 switch (toUndo) {
                     case "BALL":
                         balls.remove(balls.size() - 1);
+                        speedVecs.remove(speedVecs.size() - 1);
                         break;
                     case "OBSTACLE":
                         obstacles.remove(obstacles.size() - 1);
                         break;
                     case "BOTTLENECK":
-                        bottlenecks.remove(bottlenecks.size() - 1);
+                        stopItems.remove(stopItems.size() - 1);
                         break;
                     default:
                         // nada
@@ -316,15 +413,47 @@ public class Designer extends JSplitPane {
         eraseBtn.setForeground(Color.GRAY);
         eraseBtn.setToolTipText("Borrar toda la información del escenario");
         eraseBtn.addActionListener((ActionEvent e) -> {
-            obstacles.clear();
-            bottlenecks.clear();
-            balls.clear();
-            undoBtn.setEnabled(false);
-            eraseBtn.setEnabled(false);
-            saveBtn.setEnabled(false);
-            repaint();
+            Object[] options = {"Sí", "No"};
+            int selected = JOptionPane.showOptionDialog(frame,
+                    "¿Quiere eliminar completamente todos los objetos añadidos al mapa?",
+                    "Eliminar",
+                    JOptionPane.YES_NO_OPTION,
+                    JOptionPane.QUESTION_MESSAGE,
+                    null,
+                    options,
+                    options[0]);
+            if (selected == 0) {
+                obstacles.clear();
+                stopItems.clear();
+                balls.clear();
+                speedVecs.clear();
+                undoBtn.setEnabled(false);
+                eraseBtn.setEnabled(false);
+                saveBtn.setEnabled(false);
+                saved = false;
+                repaint();
+            }
         });
         controlPanel.add(eraseBtn);
+    }
+
+    private void saveMap() {
+        Object[] options = {"Sí", "No"};
+        int selected = JOptionPane.showOptionDialog(frame,
+                "¿Seguro que quiere guardar el mapa? No se podrá\nvolver a modificar el mismo.",
+                "Guardar",
+                JOptionPane.YES_NO_OPTION,
+                JOptionPane.QUESTION_MESSAGE,
+                null,
+                options,
+                options[0]);
+        if (selected == 0) {
+            db.insertSpace(mapName);
+            db.insertBalls(balls);
+            db.insertObstacles(obstacles);
+            db.insertStopItems(stopItems);
+            saved = true;
+        }
     }
 
     private void createObjectParamForm() {
@@ -393,33 +522,75 @@ public class Designer extends JSplitPane {
         radiusLb.setLocation(500, 50);
         controlPanel.add(radiusLb);
 
-        radiusTf = new JFormattedTextField(numberFormatter);
-        radiusTf.setText("5");
-        radiusTf.setSize(75, 20);
-        radiusTf.setLocation(578, 50);
-        controlPanel.add(radiusTf);
+        radiusInfoLb = new JLabel("15", SwingConstants.RIGHT);
+        radiusInfoLb.setSize(75, 20);
+        radiusInfoLb.setLocation(615, 50);
+        controlPanel.add(radiusInfoLb);
 
-        speedXLb = new JLabel("Vel. X: ", SwingConstants.RIGHT);
-        speedXLb.setSize(75, 20);
-        speedXLb.setLocation(643, 50);
-        controlPanel.add(speedXLb);
+        radiusSl = new JSlider(JSlider.HORIZONTAL, MIN_RADIUS, MAX_RADIUS, 15);
+        radiusSl.setSize(105, 20);
+        radiusSl.setLocation(570, 52);
+        radiusSl.addChangeListener((ChangeEvent e) -> {
+            radiusInfoLb.setText("" + radiusSl.getValue());
+        });
+        controlPanel.add(radiusSl);
 
-        speedXTf = new JFormattedTextField(numberFormatter);
-        speedXTf.setText("0");
-        speedXTf.setSize(75, 20);
-        speedXTf.setLocation(721, 50);
-        controlPanel.add(speedXTf);
+        angleLb = new JLabel("Ángulo: ", SwingConstants.RIGHT);
+        angleLb.setSize(75, 50);
+        angleLb.setLocation(700, 24);
+        controlPanel.add(angleLb);
 
-        speedYLb = new JLabel("Vel. Y: ", SwingConstants.RIGHT);
-        speedYLb.setSize(75, 20);
-        speedYLb.setLocation(643, 90);
-        controlPanel.add(speedYLb);
+        angleInfoLb = new JLabel("0,00º", SwingConstants.RIGHT);
+        angleInfoLb.setSize(75, 20);
+        angleInfoLb.setLocation(757, 75);
+        controlPanel.add(angleInfoLb);
 
-        speedYTf = new JFormattedTextField(numberFormatter);
-        speedYTf.setText("0");
-        speedYTf.setSize(75, 20);
-        speedYTf.setLocation(721, 90);
-        controlPanel.add(speedYTf);
+        angleSl = new RoundSlider(Math.toRadians(90));
+        angleSl.setSize(50, 50);
+        angleSl.setLocation(735, 63);
+        angleSl.addMouseMotionListener(new MouseMotionListener() {
+            @Override
+            public void mouseDragged(MouseEvent e) {
+                DecimalFormat angleFormat = new DecimalFormat("0.0");
+                angleInfoLb.setText(angleFormat.format(Math.toDegrees(angleSl.getAngle())) + "º");
+            }
+
+            @Override
+            public void mouseMoved(MouseEvent e) {
+            }
+        });
+        controlPanel.add(angleSl);
+
+        speedLb = new JLabel("Vel.: ", SwingConstants.RIGHT);
+        speedLb.setSize(75, 20);
+        speedLb.setLocation(500, 90);
+        controlPanel.add(speedLb);
+
+        speedInfoLb = new JLabel("15", SwingConstants.RIGHT);
+        speedInfoLb.setSize(75, 20);
+        speedInfoLb.setLocation(615, 90);
+        controlPanel.add(speedInfoLb);
+
+        speedSl = new JSlider(JSlider.HORIZONTAL, MIN_SPEED, MAX_SPEED, 5);
+        speedSl.setSize(105, 20);
+        speedSl.setLocation(570, 92);
+        speedSl.addChangeListener((ChangeEvent e) -> {
+            speedInfoLb.setText("" + speedSl.getValue());
+        });
+        controlPanel.add(speedSl);
+
+        ballTypeLb = new JLabel("Tipo de bola: ", SwingConstants.RIGHT);
+        ballTypeLb.setSize(75, 20);
+        ballTypeLb.setLocation(870, 50);
+        controlPanel.add(ballTypeLb);
+
+        ballTypeCb = new JComboBox();
+        ballTypeCb.addItem("Normal");
+        ballTypeCb.addItem("Explosive");
+        ballTypeCb.addItem("Bullet");
+        ballTypeCb.setSize(75, 20);
+        ballTypeCb.setLocation(870, 70);
+        controlPanel.add(ballTypeCb);
     }
 
     private void createMapPanel() {
@@ -430,8 +601,8 @@ public class Designer extends JSplitPane {
                 paintMap(g);
             }
         };
-        mapPanel.setPreferredSize(new Dimension(1100, 619));
-        mapPanel.setBackground(Color.LIGHT_GRAY);
+        mapPanel.setPreferredSize(new Dimension(MAPPANEL_WIDTH, MAPPANEL_HEIGHT));
+        mapPanel.setBackground(Color.BLACK);
 
         MouseAdapter ma;
         ma = new MouseAdapter() {
@@ -443,31 +614,36 @@ public class Designer extends JSplitPane {
                 clickPoint = e.getPoint();
                 switch (item) {
                     case "BALL":
-                        int ballRadius = Integer.parseInt(radiusTf.getText());
-                        int speedX = Integer.parseInt(speedXTf.getText());
-                        int speedY = Integer.parseInt(speedYTf.getText());
-                        // @todo: validar también la velocidad
-                        if (ballRadius < 5 || ballRadius > 80) {
-                            JOptionPane.showMessageDialog(mapPanel,
-                                    "El radio de la bola debe estar entre 5 y 80.",
-                                    "Parámetros incorrectos",
-                                    JOptionPane.ERROR_MESSAGE);
-                            radiusTf.setText("5");
-                            radiusTf.requestFocus();
-                        } else {
-                            ball = clickPoint;
+                        int ballRadius = radiusSl.getValue();
+                        int speed = speedSl.getValue();
+                        float angle = (float) Math.toDegrees(angleSl.getAngle());
+                        String ballType = "N";
+                        switch (ballTypeCb.getSelectedItem().toString()) {
+                            case "Normal":
+                                ballType = "N";
+                                break;
+                            case "Explosive":
+                                ballType = "E";
+                                break;
+                            case "Bullet":
+                                ballType = "B";
+                                break;
+                            default:
+                                break;
                         }
+                        ball = new Ball(clickPoint.x, clickPoint.y, speed, 0, ballRadius, angle, ballType);
                         break;
                     case "OBSTACLE":
                         obstacle = null;
                         break;
                     case "BOTTLENECK":
-                        bottleneck = null;
+                        stopItem = null;
                         break;
                     default:
                         // nada
                         break;
                 }
+                mapPanel.repaint();
                 posXTf.setText("" + clickPoint.x);
                 posYTf.setText("" + clickPoint.y);
             }
@@ -478,7 +654,9 @@ public class Designer extends JSplitPane {
                 int x, y, width, height;
                 switch (item) {
                     case "BALL":
-                        ball = dragPoint;
+                        //ball = dragPoint;
+                        ball.setX(dragPoint.x);
+                        ball.setY(dragPoint.y);
                         posXTf.setText("" + dragPoint.x);
                         posYTf.setText("" + dragPoint.y);
                         break;
@@ -486,12 +664,21 @@ public class Designer extends JSplitPane {
                         x = Math.min(clickPoint.x, dragPoint.x);
                         y = Math.min(clickPoint.y, dragPoint.y);
                         width = Math.max(clickPoint.x, dragPoint.x) - x;
+                        if (width > MAX_WIDTH) {
+                            width = MAX_WIDTH;
+                        }
                         height = Math.max(clickPoint.y, dragPoint.y) - y;
+                        if (height > MAX_HEIGHT) {
+                            height = MAX_HEIGHT;
+                        }
                         if (width > 0 && height > 0) {
                             if (obstacle == null) {
-                                obstacle = new Rectangle(x, y, width, height);
+                                obstacle = new Obstacle((float) x, (float) y, (float) width, (float) height, space);
                             } else {
-                                obstacle.setBounds(x, y, width, height);
+                                obstacle.setX(x);
+                                obstacle.setY(y);
+                                obstacle.setWidth(width);
+                                obstacle.setHeight(height);
                             }
                             widthTf.setText("" + width);
                             heightTf.setText("" + height);
@@ -501,12 +688,21 @@ public class Designer extends JSplitPane {
                         x = Math.min(clickPoint.x, dragPoint.x);
                         y = Math.min(clickPoint.y, dragPoint.y);
                         width = Math.max(clickPoint.x, dragPoint.x) - x;
+                        if (width > MAX_WIDTH) {
+                            width = MAX_WIDTH;
+                        }
                         height = Math.max(clickPoint.y, dragPoint.y) - y;
+                        if (height > MAX_HEIGHT) {
+                            height = MAX_HEIGHT;
+                        }
                         if (width > 0 && height > 0) {
-                            if (bottleneck == null) {
-                                bottleneck = new Rectangle(x, y, width, height);
+                            if (stopItem == null) {
+                                stopItem = new StopItem(x, y, width, height, space);
                             } else {
-                                bottleneck.setBounds(x, y, width, height);
+                                stopItem.setX(x);
+                                stopItem.setY(y);
+                                stopItem.setWidth(width);
+                                stopItem.setHeight(height);
                             }
                             widthTf.setText("" + width);
                             heightTf.setText("" + height);
@@ -524,19 +720,39 @@ public class Designer extends JSplitPane {
                 undoList.push(item);
                 switch (item) {
                     case "BALL":
-                        balls.add(ball);
+                        if (isValidPosBall(ball)) {
+                            balls.add(ball);
+                            Point p1 = new Point(0, 0);
+                            Point p2 = new Point(0, 0);
+                            if (ball.getSpeed() != 0) {
+                                p1 = new Point((int) ball.getX(), (int) ball.getY());
+                                p2 = new Point((int) (ball.getX() + (ball.getSpeedx() * 3)), (int) (ball.getY() + (ball.getSpeedy() * 3)));
+                            }
+                            Point[] p = {p1, p2};
+                            speedVecs.add(p);
+                        } else {
+                            JOptionPane.showMessageDialog(null, "Los objetos no pueden ser superpuestos ni colocados\ndemasiado cerca de los bordes de la pantalla.", "Error en la creación del objeto", JOptionPane.ERROR_MESSAGE);
+                        }
                         ball = null;
                         break;
                     case "OBSTACLE":
                         if (obstacle != null) {
-                            obstacles.add(obstacle);
+                            if (isValidPosObstacle(obstacle)) {
+                                obstacles.add(obstacle);
+                            } else {
+                                JOptionPane.showMessageDialog(null, "Los objetos no pueden ser superpuestos ni colocados\ndemasiado cerca de los bordes de la pantalla.", "Error en la creación del objeto", JOptionPane.ERROR_MESSAGE);
+                            }
                             obstacle = null;
                         }
                         break;
                     case "BOTTLENECK":
-                        if (bottleneck != null) {
-                            bottlenecks.add(bottleneck);
-                            bottleneck = null;
+                        if (stopItem != null) {
+                            if (isValidPosStopItem(stopItem)) {
+                                stopItems.add(stopItem);
+                            } else {
+                                JOptionPane.showMessageDialog(null, "Los objetos no pueden ser superpuestos ni colocados\ndemasiado cerca de los bordes de la pantalla.", "Error en la creación del objeto", JOptionPane.ERROR_MESSAGE);
+                            }
+                            stopItem = null;
                         }
                         break;
                     default:
@@ -556,59 +772,136 @@ public class Designer extends JSplitPane {
         mapPanel.addMouseMotionListener(ma);
     }
 
+    private boolean isValidPosBall(Ball b) {
+        if (b.getX() - b.getRadius() <= 0 + MIN_MARGIN
+                || b.getY() - b.getRadius() <= 0 + MIN_MARGIN
+                || b.getX() + b.getRadius() >= MAPPANEL_WIDTH - MIN_MARGIN
+                || b.getY() + b.getRadius() >= MAPPANEL_HEIGHT - MIN_MARGIN) {
+            return false;
+        }
+        for (Ball ba : balls) {
+            if (Math.sqrt((b.getX() - ba.getX()) * (b.getX() - ba.getX()) + (b.getY() - ba.getY()) * (b.getY() - ba.getY())) < (b.getRadius() + ba.getRadius())) {
+                return false;
+            }
+        }
+        for (Obstacle obs : obstacles) {
+            if (obs.intersects(b)) {
+                return false;
+            }
+        }
+        for (StopItem stop : stopItems) {
+            if (stop.intersects(b)) {
+                return false;
+            }
+        }
+        return true;
+    }
+
+    private boolean isValidPosObstacle(Obstacle o) {
+        if (o.getX() <= 0 + MIN_MARGIN
+                || o.getY() <= 0 + MIN_MARGIN
+                || o.getX() + o.getWidth() >= MAPPANEL_WIDTH - MIN_MARGIN
+                || o.getY() + o.getHeight() >= MAPPANEL_HEIGHT - MIN_MARGIN) {
+            return false;
+        }
+        Rectangle oR = new Rectangle((int) o.getX(), (int) o.getY(), (int) o.getWidth(), (int) o.getHeight());
+        for (Ball ba : balls) {
+            if (o.intersects(ba)) {
+                return false;
+            }
+        }
+        for (Obstacle obs : obstacles) {
+            Rectangle obsR = new Rectangle((int) obs.getX(), (int) obs.getY(), (int) obs.getWidth(), (int) obs.getHeight());
+            if (oR.intersects(obsR)) {
+                return false;
+            }
+        }
+        for (StopItem stop : stopItems) {
+            Rectangle stopR = new Rectangle((int) stop.getX(), (int) stop.getY(), (int) stop.getWidth(), (int) stop.getHeight());
+            if (oR.intersects(stopR)) {
+                return false;
+            }
+        }
+        return true;
+    }
+
+    private boolean isValidPosStopItem(StopItem si) {
+        if (si.getX() <= 0 + MIN_MARGIN
+                || si.getY() <= 0 + MIN_MARGIN
+                || si.getX() + si.getWidth() >= MAPPANEL_WIDTH - MIN_MARGIN
+                || si.getY() + si.getHeight() >= MAPPANEL_HEIGHT - MIN_MARGIN) {
+            return false;
+        }
+        Rectangle siR = new Rectangle((int) si.getX(), (int) si.getY(), (int) si.getWidth(), (int) si.getHeight());
+        for (Ball ba : balls) {
+            if (si.intersects(ba)) {
+                return false;
+            }
+        }
+        for (Obstacle obs : obstacles) {
+            Rectangle obsR = new Rectangle((int) obs.getX(), (int) obs.getY(), (int) obs.getWidth(), (int) obs.getHeight());
+            if (siR.intersects(obsR)) {
+                return false;
+            }
+        }
+        for (StopItem stop : stopItems) {
+            Rectangle stopR = new Rectangle((int) stop.getX(), (int) stop.getY(), (int) stop.getWidth(), (int) stop.getHeight());
+            if (siR.intersects(stopR)) {
+                return false;
+            }
+        }
+        return true;
+    }
+
     private void paintMap(Graphics g) {
 
-        // @todo: Habrá que cambiar los pintados por los métodos de pintar de los objetos
+        g.setColor(Color.LIGHT_GRAY);
+        g.drawRect(MIN_MARGIN, MIN_MARGIN, MAPPANEL_WIDTH - MIN_MARGIN, MAPPANEL_HEIGHT - MIN_MARGIN);
+
         // Pintado de los objetos ya existentes
-        for (Point p : balls) {
-            Graphics2D g2d = (Graphics2D) g;
-            g2d.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
-            g2d.setColor(Color.BLUE);
-            g2d.fillOval(p.x - radius, p.y - radius, radius * 2, radius * 2);
+        for (Ball b : balls) {
+            b.draw(g);
         }
-        for (Rectangle r : obstacles) {
-            g.setColor(Color.RED);
-            Graphics2D g2d = (Graphics2D) g.create();
-            g2d.setComposite(AlphaComposite.SrcOver.derive(0.8f));
-            g2d.fill(r);
-            g2d.dispose();
-            g2d = (Graphics2D) g.create();
-            g2d.draw(r);
+        for (Obstacle o : obstacles) {
+            o.draw(g);
         }
-        for (Rectangle r : bottlenecks) {
-            g.setColor(Color.GREEN);
-            Graphics2D g2d = (Graphics2D) g.create();
-            g2d.setComposite(AlphaComposite.SrcOver.derive(0.8f));
-            g2d.fill(r);
-            g2d.dispose();
-            g2d = (Graphics2D) g.create();
-            g2d.draw(r);
+        for (StopItem si : stopItems) {
+            si.draw(g);
+        }
+
+        for (Point[] p : speedVecs) {
+            if (p[0] != p[1]) {
+                g.setColor(Color.white);
+                g.drawLine(p[0].x, p[0].y, p[1].x, p[1].y);
+                drawVecArrow((Graphics2D) g, p[1], p[0], Color.WHITE);
+            }
         }
 
         // Pintado del objeto seleccionado
         if (ball != null) {
-            g.setColor(Color.BLUE);
-            g.fillOval(ball.x - radius, ball.y - radius, radius * 2, radius * 2);
+            ball.draw(g);
         }
         if (obstacle != null) {
-            g.setColor(Color.RED);
-            Graphics2D g2d = (Graphics2D) g.create();
-            g2d.setComposite(AlphaComposite.SrcOver.derive(0.658f));
-            g2d.fill(obstacle);
-            g2d.dispose();
-            g2d = (Graphics2D) g.create();
-            g2d.draw(obstacle);
-            g2d.dispose();
+            obstacle.draw(g);
         }
-        if (bottleneck != null) {
-            g.setColor(Color.GREEN);
-            Graphics2D g2d = (Graphics2D) g.create();
-            g2d.setComposite(AlphaComposite.SrcOver.derive(0.65f));
-            g2d.fill(bottleneck);
-            g2d.dispose();
-            g2d = (Graphics2D) g.create();
-            g2d.draw(bottleneck);
-            g2d.dispose();
+        if (stopItem != null) {
+            stopItem.draw(g);
+        }
+    }
+
+    private void drawVecArrow(Graphics2D g2, Point head, Point tail, Color color) {
+        double headAngle = Math.toRadians(30);
+        double headLength = 12;
+        g2.setPaint(color);
+        double dy = head.y - tail.y;
+        double dx = head.x - tail.x;
+        double theta = Math.atan2(dy, dx);
+        double x, y, rho = theta + headAngle;
+        for (int j = 0; j < 2; j++) {
+            x = head.x - headLength * Math.cos(rho);
+            y = head.y - headLength * Math.sin(rho);
+            g2.draw(new Line2D.Double(head.x, head.y, x, y));
+            rho = theta - headAngle;
         }
     }
 
