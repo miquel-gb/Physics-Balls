@@ -1,0 +1,100 @@
+<?xml version="1.0" encoding="utf-8"?>
+<RelativeLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    xmlns:tools="http://schemas.android.com/tools"
+    android:id="@+id/content_menu"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:paddingBottom="@dimen/activity_vertical_margin"
+    android:paddingLeft="@dimen/activity_horizontal_margin"
+    android:paddingRight="@dimen/activity_horizontal_margin"
+    android:paddingTop="@dimen/activity_vertical_margin"
+    android:background="@drawable/background"
+    app:layout_behavior="@string/appbar_scrolling_view_behavior"
+    tools:context="com.example.leonardo.physicballsv2.menu"
+    tools:showIn="@layout/app_bar_menu">
+
+    <ScrollView
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content">
+        <LinearLayout
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:orientation="vertical">
+            <TextView
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:textColor="@color/colorAccent"
+                android:textSize="30dp"
+                android:textAlignment="center"
+                android:padding="5dp"
+                android:text="Physic Balls Simulator"/>
+            <TextView
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:textColor="@color/colorAccent"
+                android:textSize="20dp"
+                android:padding="5dp"
+                android:text="Bienvenido a la aplicación de arranque de la simulación de Physics Balls."/>
+            <TextView
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:textColor="@color/colorAccent"
+                android:textSize="20dp"
+                android:padding="5dp"
+                android:text="Para arrancar una simulación necesitará tener una configuración correcta en función de lo que desea hacer y sus pantallas disponibles."/>
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="match_parent"
+                android:textColor="@color/colorAccent"
+                android:textSize="20dp"
+                android:padding="5dp"
+                android:text="Las instrucciones son las siguientes:"/>
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="match_parent"
+                android:textColor="@color/colorAccent"
+                android:textSize="20dp"
+                android:padding="5dp"
+                android:text="-Indique el numero de pantallas que quiera conectar"/>
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="match_parent"
+                android:textColor="@color/colorAccent"
+                android:textSize="20dp"
+                android:padding="5dp"
+                android:text="-Indique la dimension que quiera representar(la dimension debe ser mas grande que el numero de pantallas)"/>
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="match_parent"
+                android:textColor="@color/colorAccent"
+                android:textSize="20dp"
+                android:padding="5dp"
+                android:text="-Indique el escenario"/>
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="match_parent"
+                android:textColor="@color/colorAccent"
+                android:textSize="20dp"
+                android:padding="5dp"
+                android:text="-Indique, para cada pantalla, el eje de coordenadas que representará en la plantilla."/>
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="match_parent"
+                android:textColor="@color/colorAccent"
+                android:textSize="20dp"
+                android:padding="5dp"
+                android:text="-Guarde y vuelva al menu para poder arrancar la simulación."/>
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="match_parent"
+                android:textColor="@color/colorAccent"
+                android:textSize="20dp"
+                android:padding="5dp"
+                android:text="Author Leonardo Abril Bejarano"/>
+        </LinearLayout>
+
+    </ScrollView>
+
+
+</RelativeLayout>
